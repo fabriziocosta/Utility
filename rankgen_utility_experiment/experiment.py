@@ -51,9 +51,6 @@ def run_experiment(
     config: ExperimentConfig,
     generators: list[Generator] | None = None,
 ) -> tuple[SpiralDataset, dict[str, tuple[np.ndarray, np.ndarray]], pd.DataFrame]:
-    if generators is None:
-        generators = default_generators(config)
-
     data = make_two_spirals(
         train_per_class=config.train_per_class,
         test_per_class=config.test_per_class,
@@ -62,9 +59,19 @@ def run_experiment(
         noise=config.noise,
         seed=config.seed,
     )
+    return run_on_dataset(config, data, generators=generators)
 
+
+def run_on_dataset(
+    config: ExperimentConfig,
+    data: SpiralDataset,
+    generators: list[Generator] | None = None,
+) -> tuple[SpiralDataset, dict[str, tuple[np.ndarray, np.ndarray]], pd.DataFrame]:
     generated: dict[str, tuple[np.ndarray, np.ndarray]] = {}
     rows: list[MetricResult] = []
+
+    if generators is None:
+        generators = default_generators(config)
 
     for offset, generator in enumerate(generators):
         rng = np.random.default_rng(config.seed + 10_000 + offset)
@@ -223,7 +230,12 @@ def plot_metric_bars(results: pd.DataFrame) -> plt.Figure:
     )
 
     for ax, (metric, title) in zip(axes, metrics):
-        grouped = plot_df.groupby("generator")[metric].agg(["mean", "std"]).loc[order]
+        grouped = (
+            plot_df.groupby("generator")[metric]
+            .agg(["mean", "std"])
+            .fillna(0.0)
+            .loc[order]
+        )
         ax.bar(grouped.index, grouped["mean"], yerr=grouped["std"], capsize=3, color="#4C78A8")
         ax.set_title(title)
         ax.tick_params(axis="x", rotation=35)

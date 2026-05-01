@@ -4,8 +4,9 @@ This workspace contains a compact synthetic experiment for testing whether a
 Utility-style probe separates informative augmentation from near-copying when
 quality and simple distributional fit look similar.
 
-The thin notebook is `notebooks/two_spirals_utility.ipynb`. Reusable code lives
-in `rankgen_utility_experiment/`.
+The thin notebooks are `notebooks/two_spirals_utility.ipynb` and
+`notebooks/mnist_utility.ipynb`. Reusable code lives in
+`rankgen_utility_experiment/`.
 
 Run the notebook, or execute the core experiment directly:
 
@@ -34,3 +35,8 @@ The intended comparison is:
 
 The main outcome is `utility_gain`, defined as dense-test accuracy after
 augmentation minus dense-test accuracy from the sparse train set alone.
+
+`test_per_class` controls the held-out set used to measure downstream
+augmentation gain. `oracle_per_class` controls a separate dense real sample used
+only for diagnostics such as quality, FID-like distance, precision/recall, and
+real-vs-generated distinguishability.
