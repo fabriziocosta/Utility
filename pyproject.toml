@@ -13,6 +13,7 @@ dependencies = [
     "pandas",
     "scikit-learn",
     "scipy",
+    "umap-learn",
 ]
 
 [tool.setuptools.packages.find]

@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 import matplotlib.pyplot as plt
+from matplotlib.lines import Line2D
 import numpy as np
 from numpy.typing import NDArray
 from sklearn.datasets import fetch_openml
@@ -178,6 +179,136 @@ def plot_mnist_samples(
                     va="center",
                 )
             ax.set_title(str(int(y_gen[idx])), fontsize=8)
+
+    fig.tight_layout()
+    return fig
+
+
+def _sample_rows(
+    x: FloatArray,
+    y: NDArray[np.int_],
+    max_rows: int,
+    *,
+    rng: np.random.Generator,
+) -> tuple[FloatArray, NDArray[np.int_]]:
+    if len(x) <= max_rows:
+        return x, y
+    idx = rng.choice(len(x), size=max_rows, replace=False)
+    return x[idx], y[idx]
+
+
+def plot_mnist_umap(
+    data: SpiralDataset,
+    generated: dict[str, tuple[np.ndarray, np.ndarray]],
+    *,
+    max_real: int = 1_000,
+    max_generated_per_generator: int = 1_000,
+    seed: int = 0,
+    n_neighbors: int = 15,
+    min_dist: float = 0.1,
+) -> plt.Figure:
+    try:
+        from umap import UMAP
+    except ImportError as exc:
+        raise ImportError(
+            "plot_mnist_umap requires umap-learn. Install it with "
+            "`python -m pip install umap-learn`."
+        ) from exc
+
+    rng = np.random.default_rng(seed)
+    x_real, y_real = _sample_rows(data.x_oracle, data.y_oracle, max_real, rng=rng)
+
+    sampled_generated = {}
+    all_x = [x_real]
+    for name, (x_gen, y_gen) in generated.items():
+        x_sample, y_sample = _sample_rows(
+            x_gen,
+            y_gen,
+            max_generated_per_generator,
+            rng=rng,
+        )
+        sampled_generated[name] = (x_sample, y_sample)
+        all_x.append(x_sample)
+
+    embedding = UMAP(
+        n_components=2,
+        n_neighbors=n_neighbors,
+        min_dist=min_dist,
+        metric="euclidean",
+        random_state=seed,
+    ).fit_transform(np.vstack(all_x))
+
+    real_end = len(x_real)
+    real_embedding = embedding[:real_end]
+    offset = real_end
+
+    ncols = max(1, len(sampled_generated))
+    fig, axes = plt.subplots(
+        1,
+        ncols,
+        figsize=(4.4 * ncols, 4.1),
+        sharex=True,
+        sharey=True,
+        squeeze=False,
+    )
+    axes = axes.ravel()
+    class_cmap = plt.get_cmap("tab10")
+    real_colors = class_cmap(y_real % 10)
+
+    for ax, (name, (x_sample, y_sample)) in zip(axes, sampled_generated.items()):
+        gen_embedding = embedding[offset : offset + len(x_sample)]
+        offset += len(x_sample)
+        generated_edge_colors = class_cmap(y_sample % 10)
+
+        ax.scatter(
+            real_embedding[:, 0],
+            real_embedding[:, 1],
+            c=real_colors,
+            s=28,
+            alpha=1.0,
+            linewidths=0,
+        )
+        ax.scatter(
+            gen_embedding[:, 0],
+            gen_embedding[:, 1],
+            facecolors="white",
+            edgecolors=generated_edge_colors,
+            s=16,
+            alpha=0.9,
+            marker="o",
+            linewidths=0.9,
+        )
+        ax.set_title(generator_label(name))
+        ax.set_xticks([])
+        ax.set_yticks([])
+        ax.legend(
+            handles=[
+                Line2D(
+                    [0],
+                    [0],
+                    marker="o",
+                    color="none",
+                    markerfacecolor="gray",
+                    markeredgewidth=0,
+                    label="True",
+                    markersize=5,
+                    alpha=0.45,
+                ),
+                Line2D(
+                    [0],
+                    [0],
+                    marker="o",
+                    color="black",
+                    markerfacecolor="white",
+                    linestyle="none",
+                    label="Generated",
+                    markersize=5,
+                ),
+            ],
+            loc="best",
+            frameon=False,
+            fontsize=8,
+        )
 
     fig.tight_layout()
     return fig

@@ -58,6 +58,7 @@ class ExperimentConfig:
     test_per_class: int = 2_000
     oracle_per_class: int = 3_000
     generated_per_class: int = 500
+    generator_latent_components: int | None = 4
     smote_neighbors: int = 4
     transfer_ab_neighbors: int = 2
     transfer_bc_neighbors: int = 4
@@ -77,10 +78,14 @@ def default_generators(
     include_noise_model: bool = False,
 ) -> list[Generator]:
     generators: list[Generator] = [
-        SmoteGenerator(k=config.smote_neighbors),
+        SmoteGenerator(
+            k=config.smote_neighbors,
+            latent_components=config.generator_latent_components,
+        ),
         TransferDifferenceGenerator(
             k_ab=config.transfer_ab_neighbors,
             k_bc=config.transfer_bc_neighbors,
+            latent_components=config.generator_latent_components,
         ),
     ]
     if include_noise_model:
