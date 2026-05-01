@@ -9,6 +9,7 @@ from sklearn.datasets import fetch_openml
 from sklearn.model_selection import train_test_split
 
 from .data import SpiralDataset
+from .experiment import generator_label
 
 
 FloatArray = NDArray[np.float64]
@@ -135,7 +136,9 @@ def plot_mnist_samples(
     *,
     n_per_generator: int = 12,
     image_shape: tuple[int, int] = (28, 28),
+    seed: int | None = 0,
 ) -> plt.Figure:
+    rng = np.random.default_rng(seed)
     nrows = len(generated)
     fig, axes = plt.subplots(
         nrows,
@@ -145,14 +148,36 @@ def plot_mnist_samples(
     )
 
     for row, (name, (x_gen, y_gen)) in enumerate(generated.items()):
-        for col in range(n_per_generator):
+        labels = np.unique(y_gen)
+        if n_per_generator % len(labels) != 0:
+            raise ValueError(
+                "n_per_generator must be divisible by the number of classes"
+            )
+        n_per_class = n_per_generator // len(labels)
+
+        selected = []
+        for label in labels:
+            label_idx = np.flatnonzero(y_gen == label)
+            if len(label_idx) < n_per_class:
+                raise ValueError(
+                    f"class {label} has {len(label_idx)} samples, need {n_per_class}"
+                )
+            selected.append(rng.choice(label_idx, size=n_per_class, replace=False))
+        selected_idx = rng.permutation(np.concatenate(selected))
+
+        for col, idx in enumerate(selected_idx):
             ax = axes[row, col]
-            ax.imshow(x_gen[col].reshape(image_shape), cmap="gray", vmin=0, vmax=1)
+            ax.imshow(x_gen[idx].reshape(image_shape), cmap="gray", vmin=0, vmax=1)
             ax.set_xticks([])
             ax.set_yticks([])
             if col == 0:
-                ax.set_ylabel(name, rotation=0, ha="right", va="center")
-            ax.set_title(str(int(y_gen[col])), fontsize=8)
+                ax.set_ylabel(
+                    generator_label(name),
+                    rotation=0,
+                    ha="right",
+                    va="center",
+                )
+            ax.set_title(str(int(y_gen[idx])), fontsize=8)
 
     fig.tight_layout()
     return fig

@@ -15,6 +15,41 @@ from .generators import (
 )
 from .metrics import MetricResult, evaluate_generator
 
+METRIC_DIRECTIONS = {
+    "quality": "up",
+    "utility_gain": "up",
+    "utility_augmented_accuracy": "up",
+    "baseline_accuracy": "up",
+    "similarity_to_train": "down",
+    "fid_to_oracle": "down",
+    "precision": "up",
+    "recall": "up",
+    "distinguishability_auc": "down",
+}
+
+METRIC_LABELS = {
+    "quality": "Quality",
+    "utility_gain": "Utility gain",
+    "utility_augmented_accuracy": "Augmented accuracy",
+    "baseline_accuracy": "Baseline accuracy",
+    "similarity_to_train": "Similarity to train",
+    "fid_to_oracle": "FID-like distance",
+    "precision": "Precision",
+    "recall": "Recall",
+    "distinguishability_auc": "Distinguishability AUC",
+}
+
+METRIC_ARROWS = {
+    "up": "↑",
+    "down": "↓",
+}
+
+GENERATOR_LABELS = {
+    "SMOTE interpolation": "SMOTE",
+    "Transferred local differences": "TLD",
+    "Random noise": "Noise",
+}
+
 
 @dataclass(frozen=True)
 class ExperimentConfig:
@@ -36,20 +71,28 @@ class ExperimentConfig:
     noise: float = 0.08
 
 
-def default_generators(config: ExperimentConfig) -> list[Generator]:
-    return [
+def default_generators(
+    config: ExperimentConfig,
+    *,
+    include_noise_model: bool = False,
+) -> list[Generator]:
+    generators: list[Generator] = [
         SmoteGenerator(k=config.smote_neighbors),
         TransferDifferenceGenerator(
             k_ab=config.transfer_ab_neighbors,
             k_bc=config.transfer_bc_neighbors,
         ),
-        NoiseGenerator(),
     ]
+    if include_noise_model:
+        generators.append(NoiseGenerator())
+    return generators
 
 
 def run_experiment(
     config: ExperimentConfig,
     generators: list[Generator] | None = None,
+    *,
+    include_noise_model: bool = False,
 ) -> tuple[SpiralDataset, dict[str, tuple[np.ndarray, np.ndarray]], pd.DataFrame]:
     data = make_two_spirals(
         train_per_class=config.train_per_class,
@@ -59,19 +102,29 @@ def run_experiment(
         noise=config.noise,
         seed=config.seed,
     )
-    return run_on_dataset(config, data, generators=generators)
+    return run_on_dataset(
+        config,
+        data,
+        generators=generators,
+        include_noise_model=include_noise_model,
+    )
 
 
 def run_on_dataset(
     config: ExperimentConfig,
     data: SpiralDataset,
     generators: list[Generator] | None = None,
+    *,
+    include_noise_model: bool = False,
 ) -> tuple[SpiralDataset, dict[str, tuple[np.ndarray, np.ndarray]], pd.DataFrame]:
     generated: dict[str, tuple[np.ndarray, np.ndarray]] = {}
     rows: list[MetricResult] = []
 
     if generators is None:
-        generators = default_generators(config)
+        generators = default_generators(
+            config,
+            include_noise_model=include_noise_model,
+        )
 
     for offset, generator in enumerate(generators):
         rng = np.random.default_rng(config.seed + 10_000 + offset)
@@ -112,11 +165,17 @@ def run_many(
     seeds: list[int],
     base_config: ExperimentConfig,
     generators: list[Generator] | None = None,
+    *,
+    include_noise_model: bool = False,
 ) -> pd.DataFrame:
     frames = []
     for seed in seeds:
         config = ExperimentConfig(**{**asdict(base_config), "seed": seed})
-        _, _, result = run_experiment(config, generators=generators)
+        _, _, result = run_experiment(
+            config,
+            generators=generators,
+            include_noise_model=include_noise_model,
+        )
         frames.append(result)
     return pd.concat(frames, ignore_index=True)
 
@@ -135,6 +194,55 @@ def summarize(results: pd.DataFrame) -> pd.DataFrame:
     ]
     summary = results.groupby("generator")[metrics].agg(["mean", "std"])
     return summary.sort_values(("utility_gain", "mean"), ascending=False)
+
+
+def metric_label(metric: str, *, human_readable: bool = True) -> str:
+    label = METRIC_LABELS.get(metric, metric) if human_readable else metric
+    direction = METRIC_DIRECTIONS.get(metric)
+    if direction is None:
+        return label
+    return f"{label} {METRIC_ARROWS[direction]}"
+
+
+def label_metric_columns(
+    df: pd.DataFrame,
+    *,
+    human_readable: bool = False,
+) -> pd.DataFrame:
+    labeled = df.copy()
+    if isinstance(labeled.columns, pd.MultiIndex):
+        labeled.columns = pd.MultiIndex.from_tuples(
+            (
+                metric_label(column[0], human_readable=human_readable),
+                *column[1:],
+            )
+            if column and column[0] in METRIC_DIRECTIONS
+            else column
+            for column in labeled.columns
+        )
+    else:
+        labeled = labeled.rename(
+            columns={
+                column: metric_label(column, human_readable=human_readable)
+                for column in labeled.columns
+                if column in METRIC_DIRECTIONS
+            }
+        )
+    return labeled
+
+
+def generator_label(generator: str) -> str:
+    return GENERATOR_LABELS.get(generator, generator)
+
+
+def _autoscale_y_range(ax: plt.Axes, values: pd.Series, errors: pd.Series) -> None:
+    lower = float((values - errors).min())
+    upper = float((values + errors).max())
+    if lower == upper:
+        margin = max(abs(lower) * 0.05, 0.01)
+    else:
+        margin = (upper - lower) * 0.08
+    ax.set_ylim(lower - margin, upper + margin)
 
 
 def plot_spirals(
@@ -196,7 +304,7 @@ def plot_spirals(
             edgecolor="black",
             linewidth=0.4,
         )
-        ax.set_title(name)
+        ax.set_title(generator_label(name))
 
     for ax in axes:
         ax.set_aspect("equal", adjustable="box")
@@ -210,13 +318,13 @@ def plot_spirals(
 def plot_metric_bars(results: pd.DataFrame) -> plt.Figure:
     plot_df = results.copy()
     metrics = [
-        ("utility_gain", "Utility gain"),
-        ("quality", "Quality"),
-        ("similarity_to_train", "Similarity to train"),
-        ("fid_to_oracle", "FID-like distance"),
-        ("precision", "Precision"),
-        ("recall", "Recall"),
-        ("distinguishability_auc", "Distinguishability AUC"),
+        "utility_gain",
+        "quality",
+        "similarity_to_train",
+        "fid_to_oracle",
+        "precision",
+        "recall",
+        "distinguishability_auc",
     ]
 
     fig, axes = plt.subplots(2, 4, figsize=(15, 7))
@@ -229,17 +337,24 @@ def plot_metric_bars(results: pd.DataFrame) -> plt.Figure:
         .tolist()
     )
 
-    for ax, (metric, title) in zip(axes, metrics):
+    for ax, metric in zip(axes, metrics):
         grouped = (
             plot_df.groupby("generator")[metric]
             .agg(["mean", "std"])
             .fillna(0.0)
             .loc[order]
         )
-        ax.bar(grouped.index, grouped["mean"], yerr=grouped["std"], capsize=3, color="#4C78A8")
-        ax.set_title(title)
+        ax.bar(
+            [generator_label(generator) for generator in grouped.index],
+            grouped["mean"],
+            yerr=grouped["std"],
+            capsize=3,
+            color="#4C78A8",
+        )
+        ax.set_title(metric_label(metric))
         ax.tick_params(axis="x", rotation=35)
         ax.axhline(0, color="black", linewidth=0.8)
+        _autoscale_y_range(ax, grouped["mean"], grouped["std"])
 
     axes[-1].axis("off")
     fig.tight_layout()
