@@ -252,13 +252,15 @@ def plot_mnist_umap(
         squeeze=False,
     )
     axes = axes.ravel()
-    class_cmap = plt.get_cmap("tab10")
-    real_colors = class_cmap(y_real % 10)
+    real_cmap = plt.get_cmap("Blues")
+    generated_cmap = plt.get_cmap("Reds")
+    class_values = np.linspace(0.35, 0.95, 10)
+    real_colors = real_cmap(class_values[y_real % 10])
 
     for ax, (name, (x_sample, y_sample)) in zip(axes, sampled_generated.items()):
         gen_embedding = embedding[offset : offset + len(x_sample)]
         offset += len(x_sample)
-        generated_edge_colors = class_cmap(y_sample % 10)
+        generated_colors = generated_cmap(class_values[y_sample % 10])
 
         ax.scatter(
             real_embedding[:, 0],
@@ -271,12 +273,11 @@ def plot_mnist_umap(
         ax.scatter(
             gen_embedding[:, 0],
             gen_embedding[:, 1],
-            facecolors="white",
-            edgecolors=generated_edge_colors,
+            c=generated_colors,
             s=16,
             alpha=0.9,
             marker="o",
-            linewidths=0.9,
+            linewidths=0,
         )
         ax.set_title(generator_label(name))
         ax.set_xticks([])
@@ -288,18 +289,19 @@ def plot_mnist_umap(
                     [0],
                     marker="o",
                     color="none",
-                    markerfacecolor="gray",
+                    markerfacecolor=real_cmap(0.7),
                     markeredgewidth=0,
                     label="True",
                     markersize=5,
-                    alpha=0.45,
+                    alpha=1.0,
                 ),
                 Line2D(
                     [0],
                     [0],
                     marker="o",
-                    color="black",
-                    markerfacecolor="white",
+                    color="none",
+                    markerfacecolor=generated_cmap(0.7),
+                    markeredgewidth=0,
                     linestyle="none",
                     label="Generated",
                     markersize=5,

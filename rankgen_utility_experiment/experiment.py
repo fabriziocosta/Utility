@@ -17,26 +17,36 @@ from .metrics import MetricResult, evaluate_generator
 
 METRIC_DIRECTIONS = {
     "quality": "up",
-    "utility_gain": "up",
-    "utility_augmented_accuracy": "up",
+    "utility": "up",
+    "indistinguishability": "up",
+    "similarity": "up",
     "baseline_accuracy": "up",
-    "similarity_to_train": "down",
+    "generated_only_accuracy": "up",
+    "real_augmented_accuracy": "up",
+    "generated_augmented_accuracy": "up",
+    "real_augmentation_gain": "up",
+    "generated_augmentation_gain": "up",
     "fid_to_oracle": "down",
     "precision": "up",
     "recall": "up",
-    "distinguishability_auc": "down",
+    "distinguishability_accuracy": "down",
 }
 
 METRIC_LABELS = {
     "quality": "Quality",
-    "utility_gain": "Utility gain",
-    "utility_augmented_accuracy": "Augmented accuracy",
+    "utility": "Utility",
+    "indistinguishability": "Indistinguishability",
+    "similarity": "Similarity",
     "baseline_accuracy": "Baseline accuracy",
-    "similarity_to_train": "Similarity to train",
+    "generated_only_accuracy": "Generated-only accuracy",
+    "real_augmented_accuracy": "Real-augmented accuracy",
+    "generated_augmented_accuracy": "Generated-augmented accuracy",
+    "real_augmentation_gain": "Real augmentation gain",
+    "generated_augmentation_gain": "Generated augmentation gain",
     "fid_to_oracle": "FID-like distance",
     "precision": "Precision",
     "recall": "Recall",
-    "distinguishability_auc": "Distinguishability AUC",
+    "distinguishability_accuracy": "Distinguishability accuracy",
 }
 
 METRIC_ARROWS = {
@@ -60,8 +70,10 @@ class ExperimentConfig:
     generated_per_class: int = 500
     generator_latent_components: int | None = 4
     smote_neighbors: int = 4
+    smote_lambda: float = 0.5
     transfer_ab_neighbors: int = 2
     transfer_bc_neighbors: int = 4
+    transfer_lambda: float = 1.0
     rf_n_estimators: int = 100
     rf_max_depth: int | None = None
     rf_min_samples_leaf: int = 4
@@ -81,11 +93,13 @@ def default_generators(
         SmoteGenerator(
             k=config.smote_neighbors,
             latent_components=config.generator_latent_components,
+            lambda_=config.smote_lambda,
         ),
         TransferDifferenceGenerator(
             k_ab=config.transfer_ab_neighbors,
             k_bc=config.transfer_bc_neighbors,
             latent_components=config.generator_latent_components,
+            lambda_=config.transfer_lambda,
         ),
     ]
     if include_noise_model:
@@ -188,17 +202,12 @@ def run_many(
 def summarize(results: pd.DataFrame) -> pd.DataFrame:
     metrics = [
         "quality",
-        "utility_gain",
-        "utility_augmented_accuracy",
-        "baseline_accuracy",
-        "similarity_to_train",
-        "fid_to_oracle",
-        "precision",
-        "recall",
-        "distinguishability_auc",
+        "utility",
+        "indistinguishability",
+        "similarity",
     ]
     summary = results.groupby("generator")[metrics].agg(["mean", "std"])
-    return summary.sort_values(("utility_gain", "mean"), ascending=False)
+    return summary.sort_values(("utility", "mean"), ascending=False)
 
 
 def metric_label(metric: str, *, human_readable: bool = True) -> str:
@@ -323,19 +332,16 @@ def plot_spirals(
 def plot_metric_bars(results: pd.DataFrame) -> plt.Figure:
     plot_df = results.copy()
     metrics = [
-        "utility_gain",
         "quality",
-        "similarity_to_train",
-        "fid_to_oracle",
-        "precision",
-        "recall",
-        "distinguishability_auc",
+        "utility",
+        "indistinguishability",
+        "similarity",
     ]
 
-    fig, axes = plt.subplots(2, 4, figsize=(15, 7))
+    fig, axes = plt.subplots(1, 4, figsize=(13, 3.5))
     axes = axes.ravel()
     order = (
-        plot_df.groupby("generator")["utility_gain"]
+        plot_df.groupby("generator")["utility"]
         .mean()
         .sort_values(ascending=False)
         .index
@@ -361,6 +367,5 @@ def plot_metric_bars(results: pd.DataFrame) -> plt.Figure:
         ax.axhline(0, color="black", linewidth=0.8)
         _autoscale_y_range(ax, grouped["mean"], grouped["std"])
 
-    axes[-1].axis("off")
     fig.tight_layout()
     return fig

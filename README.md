@@ -19,7 +19,10 @@ The default configuration uses 100 sparse training points per class against a
 dense 3,000-point-per-class oracle/test manifold. Generator neighbor counts are
 controlled by `ExperimentConfig.smote_neighbors`,
 `ExperimentConfig.transfer_ab_neighbors`, and
-`ExperimentConfig.transfer_bc_neighbors`. The random-forest distinguishability
+`ExperimentConfig.transfer_bc_neighbors`. Generator interpolation scales are
+controlled by `ExperimentConfig.smote_lambda` and
+`ExperimentConfig.transfer_lambda`, defaulting to `0.5` and `1.0`. The
+random-forest distinguishability
 probe is controlled by `ExperimentConfig.rf_n_estimators`,
 `ExperimentConfig.rf_max_depth`, `ExperimentConfig.rf_min_samples_leaf`,
 `ExperimentConfig.rf_max_features`, and
@@ -33,10 +36,13 @@ The intended comparison is:
   convex segment while staying tangent-like.
 - `Random noise`: negative control.
 
-The main outcome is `utility_gain`, defined as dense-test accuracy after
-augmentation minus dense-test accuracy from the sparse train set alone.
+The main reported profile contains the four RankGen base metrics from the paper:
+`quality`, `utility`, `indistinguishability`, and `similarity`. Quality is the
+generated-only task score relative to the real-only baseline, and Utility is the
+generated augmentation gain relative to an equally sized held-out real
+augmentation gain.
 
 `test_per_class` controls the held-out set used to measure downstream
-augmentation gain. `oracle_per_class` controls a separate dense real sample used
-only for diagnostics such as quality, FID-like distance, precision/recall, and
-real-vs-generated distinguishability.
+task scores. `oracle_per_class` controls a separate dense real sample used for
+the real augmentation reference and secondary diagnostics such as FID-like
+distance, precision/recall, and real-vs-generated distinguishability.

@@ -81,6 +81,7 @@ class SmoteGenerator:
 
     k: int = 4
     latent_components: int | None = 4
+    lambda_: float | None = None
     alpha_low: float = 0.05
     alpha_high: float = 0.95
     name: str = "SMOTE interpolation"
@@ -95,16 +96,23 @@ class SmoteGenerator:
     ) -> tuple[FloatArray, IntArray]:
         xs: list[FloatArray] = []
         ys: list[IntArray] = []
-        x_latent, svd = _latent_svd_projection(x, self.latent_components)
 
         for label in np.unique(y):
-            x_class = x_latent[y == label]
+            x_class_raw = x[y == label]
+            x_class, svd = _latent_svd_projection(
+                x_class_raw,
+                self.latent_components,
+            )
             nn, _ = _class_neighbors(x_class, self.k)
             rows = rng.integers(0, len(x_class), size=n_per_class)
-            out = np.empty((n_per_class, x_latent.shape[1]), dtype=float)
+            out = np.empty((n_per_class, x_class.shape[1]), dtype=float)
             for i, row in enumerate(rows):
                 neighbor = _choose_neighbor(nn, x_class, int(row), rng=rng)
-                alpha = rng.uniform(self.alpha_low, self.alpha_high)
+                alpha = (
+                    self.lambda_
+                    if self.lambda_ is not None
+                    else rng.uniform(self.alpha_low, self.alpha_high)
+                )
                 out[i] = x_class[row] + alpha * (x_class[neighbor] - x_class[row])
             xs.append(_inverse_latent_svd(out, svd))
             ys.append(np.full(n_per_class, label, dtype=int))
@@ -124,6 +132,7 @@ class TransferDifferenceGenerator:
     k_ab: int = 2
     k_bc: int = 4
     latent_components: int | None = 4
+    lambda_: float | None = None
     alpha_low: float = 0.05
     alpha_high: float = 0.70
     name: str = "Transferred local differences"
@@ -138,18 +147,25 @@ class TransferDifferenceGenerator:
     ) -> tuple[FloatArray, IntArray]:
         xs: list[FloatArray] = []
         ys: list[IntArray] = []
-        x_latent, svd = _latent_svd_projection(x, self.latent_components)
 
         for label in np.unique(y):
-            x_class = x_latent[y == label]
+            x_class_raw = x[y == label]
+            x_class, svd = _latent_svd_projection(
+                x_class_raw,
+                self.latent_components,
+            )
             nn_ab, _ = _class_neighbors(x_class, self.k_ab)
             nn_bc, _ = _class_neighbors(x_class, self.k_bc)
             rows = rng.integers(0, len(x_class), size=n_per_class)
-            out = np.empty((n_per_class, x_latent.shape[1]), dtype=float)
+            out = np.empty((n_per_class, x_class.shape[1]), dtype=float)
             for i, row in enumerate(rows):
                 b = _choose_neighbor(nn_ab, x_class, int(row), rng=rng)
                 c = _choose_neighbor(nn_bc, x_class, b, rng=rng, exclude={int(row)})
-                alpha = rng.uniform(self.alpha_low, self.alpha_high)
+                alpha = (
+                    self.lambda_
+                    if self.lambda_ is not None
+                    else rng.uniform(self.alpha_low, self.alpha_high)
+                )
                 out[i] = x_class[row] + alpha * (x_class[c] - x_class[b])
             xs.append(_inverse_latent_svd(out, svd))
             ys.append(np.full(n_per_class, label, dtype=int))

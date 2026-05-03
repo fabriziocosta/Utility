@@ -12,13 +12,14 @@ def main() -> None:
     results = run_many(list(range(7, 12)), config)
     summary = summarize(results)
     columns = [
-        ("utility_gain", "mean"),
-        ("utility_gain", "std"),
         ("quality", "mean"),
-        ("similarity_to_train", "mean"),
-        ("fid_to_oracle", "mean"),
-        ("precision", "mean"),
-        ("recall", "mean"),
+        ("quality", "std"),
+        ("utility", "mean"),
+        ("utility", "std"),
+        ("indistinguishability", "mean"),
+        ("indistinguishability", "std"),
+        ("similarity", "mean"),
+        ("similarity", "std"),
     ]
     print(summary[columns].round(4).to_string())
 
