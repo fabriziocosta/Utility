@@ -1,16 +1,18 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 
 import matplotlib.pyplot as plt
 from matplotlib.lines import Line2D
 import numpy as np
 from numpy.typing import NDArray
+import pandas as pd
 from sklearn.datasets import fetch_openml
 from sklearn.model_selection import train_test_split
 
 from .data import SpiralDataset
-from .experiment import generator_label
+from .experiment import ExperimentConfig, generator_label, run_on_dataset
+from .generators import Generator
 
 
 FloatArray = NDArray[np.float64]
@@ -130,6 +132,33 @@ def make_mnist_dataset(config: MnistConfig) -> SpiralDataset:
         x_oracle=x_oracle,
         y_oracle=y_oracle,
     )
+
+
+def run_mnist_many(
+    seeds: list[int],
+    mnist_config: MnistConfig,
+    experiment_config: ExperimentConfig,
+    generators: list[Generator] | None = None,
+    *,
+    include_noise_model: bool = False,
+) -> pd.DataFrame:
+    frames = []
+    for seed in seeds:
+        current_mnist_config = MnistConfig(
+            **{**asdict(mnist_config), "seed": seed}
+        )
+        current_experiment_config = ExperimentConfig(
+            **{**asdict(experiment_config), "seed": seed}
+        )
+        data = make_mnist_dataset(current_mnist_config)
+        _, _, result = run_on_dataset(
+            current_experiment_config,
+            data,
+            generators=generators,
+            include_noise_model=include_noise_model,
+        )
+        frames.append(result)
+    return pd.concat(frames, ignore_index=True)
 
 
 def plot_mnist_samples(

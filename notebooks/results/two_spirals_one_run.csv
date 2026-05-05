@@ -1,0 +1,3 @@
+seed,generator,n_generated,quality,utility,indistinguishability,similarity,baseline_accuracy,generated_only_accuracy,real_augmented_accuracy,generated_augmented_accuracy,real_augmentation_gain,generated_augmentation_gain,fid_to_oracle,precision,recall,distinguishability_accuracy
+9,SMOTE interpolation,2000,1.0,0.8264462809917363,0.24249999999999994,0.19009260769880176,0.93125,0.95625,0.9615,0.95625,0.03025,0.025000000000000022,0.000838098856712007,0.9905,0.20666666666666667,0.87875
+9,Transferred local differences,2000,1.0,0.9152542372881373,0.5825,0.2420231765272326,0.93125,0.95675,0.96075,0.95825,0.02949999999999997,0.027000000000000024,0.0002755610849556538,0.984,0.8296666666666667,0.70875
