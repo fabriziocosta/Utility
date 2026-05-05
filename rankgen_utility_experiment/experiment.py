@@ -199,13 +199,20 @@ def run_many(
     return pd.concat(frames, ignore_index=True)
 
 
-def summarize(results: pd.DataFrame) -> pd.DataFrame:
-    metrics = [
-        "quality",
-        "utility",
-        "indistinguishability",
-        "similarity",
-    ]
+DEFAULT_SUMMARY_METRICS = [
+    "quality",
+    "utility",
+    "indistinguishability",
+    "similarity",
+]
+
+
+def summarize(
+    results: pd.DataFrame,
+    metrics: list[str] | tuple[str, ...] | None = None,
+) -> pd.DataFrame:
+    if metrics is None:
+        metrics = DEFAULT_SUMMARY_METRICS
     summary = results.groupby("generator")[metrics].agg(["mean", "std"])
     return summary.sort_values(("utility", "mean"), ascending=False)
 
